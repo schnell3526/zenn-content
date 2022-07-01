@@ -3,7 +3,7 @@ title: "【形態素解析ツール】Juman++ ver2 の使い方"
 emoji: "⚙️"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["自然言語処理", "python"]
-published: false
+published: True
 ---
 
 Juman++は自然言語処理を行うにあたって必要不可欠な処理である形態素解析を行うツールです。MeCabと比べると処理速度は約1/10となりますが、より高精度の解析が可能で表記揺れや口語表現にも比較的堅牢な解析ができる印象があります。
@@ -178,3 +178,102 @@ span (tuple): 形態素の位置 (開始位置, 終了位置), JUMAN出力形式
 :::
 
 # 形態素解析の応用例
+
+## nlp100本ノック: 第四章
+全ての問題は解かずに一部に回答してみます。
+```python
+import urllib
+from collections import defaultdict as ddict
+import matplotlib.pyplot as plt
+import japanize_matplotlib
+
+from pyknp import Juman
+
+
+def download_file(url, dst_path):
+    try:
+        with urllib.request.urlopen(url) as web_file:
+            data = web_file.read()
+            with open(dst_path, mode='wb') as local_file:
+                local_file.write(data)
+    except urllib.error.URLError as e:
+        print(e)
+
+class Analyzer:
+    def __init__(self, file):
+        self._jumanpp = Juman()
+        self.lines = [line for line in open(file)]
+        self.mlists = [self._jumanpp.analysis(line.rstrip()) for line in self.lines]
+        self.freq = self._count_frequency()
+    
+    def get_verbs(self):
+        verbs_surface = set()
+        verbs = set()
+        for mlist in self.mlists:
+            for mrph in mlist:
+                if mrph.hinsi == '動詞':
+                    verbs_surface.add(mrph.midasi)
+                    verbs.add(mrph.genkei)
+        return verbs_surface, verbs
+
+    def get_A_no_B(self):
+        ans = set()
+        for mlist in self.mlists:
+            for i, mrph in enumerate(mlist):
+                if mrph.midasi == 'の':
+                    if i == 0 or i == len(mlist) - 1:
+                        continue
+                    if mlist[i-1].hinsi == '名詞' and mlist[i+1].hinsi == '名詞':
+                        ans.add((mlist[i-1].midasi, mrph.midasi, mlist[i+1].midasi))
+        return ans
+
+    def _count_frequency(self):
+        freq = ddict(int)
+        for mlist in self.mlists:
+            for mrph in mlist:
+                freq[mrph.genkei] += 1
+        freq = sorted(freq.items(), key=lambda x: x[1], reverse=True)
+        return freq
+    
+    def plot(self):
+        data = [(i+1,f) for i, f in enumerate(self.freq)]
+
+        fig, ax = plt.subplots(dpi=100, figsize=(6,4))
+
+        X = [d[0] for d in data]
+        Y = [d[1][1] for d in data]
+
+        ax.plot(X,Y)
+        ax.set_xscale('log'); ax.set_yscale('log');
+        ax.set_xlabel('Rank'); ax.set_ylabel('Frequency')
+        ax.set_title('単語の出現頻度と出現順位の関係')
+        ax.grid()
+        return fig, ax
+```
+
+39番の問題に回答してみます。
+```python
+download_file('https://nlp100.github.io/data/neko.txt', dst_path='neko.txt')
+analyzer = Analyzer('neko.txt')
+fig, ax = analyzer.plot()
+```
+![](https://storage.googleapis.com/zenn-user-upload/977d8766996f-20220701.png)
+
+せっかくなので他のデータでもZipfの法則が成り立つか検証してみます。
+```python
+import os
+
+download_file('https://raw.githubusercontent.com/ecator/izunoko/master/books/%E4%BC%8A%E8%B1%86%E3%81%AE%E8%B8%8A%E5%AD%90%EF%BC%88%E8%A7%92%E5%B7%9D%E6%96%87%E5%BA%AB%EF%BC%89.txt', dst_path='odoriko.tmp')
+with open('odoriko.tmp') as fin, open('odoriko.txt', 'w') as fout:
+    for line in fin:
+        line = line.rstrip()
+        if line != '':
+            fout.write(f'{line}\n')
+os.remove('odoriko.tmp')
+
+analyzer = Analyzer('odoriko.txt')
+fig, ax = analyzer.plot()
+```
+![](https://storage.googleapis.com/zenn-user-upload/fe44ed07ea76-20220701.png)
+
+伊豆踊り子で試した場合もZipfの法則が成り立つことが確認できます。
