@@ -1,0 +1,10 @@
+title: "パターン認識と機械学習のメモ書き"
+summary: "PRML上巻に関しての個人的なメモ書きです"
+topics: ['prml', '機械学習', 'ベイズ']
+published: false
+price: 0 # 有料の場合200〜5000
+# 本に含めるチャプターを順番に並べましょう
+chapters:
+  - example1
+  - example2
+  - section2
